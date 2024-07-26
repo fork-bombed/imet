@@ -8,6 +8,7 @@ psapi = ctypes.windll.psapi
 
 SIZE_T = ctypes.c_size_t
 LPCTSTR = ctypes.c_char_p
+MAX_PATH = 260
 MEM_COMMIT = 0x00001000
 MEM_RESERVE = 0x00002000
 MEM_DECOMMIT = 0x00004000
@@ -123,11 +124,11 @@ def VirtualFreeEx(hProcess, lpAddress, dwSize, dwFreeType):
 
 
 @msdn_wrap(
-    (wintypes.HANDLE, ctypes.POINTER(wintypes.HMODULE), wintypes.DWORD, wintypes.LPDWORD),
-    wintypes.BOOL
+    (wintypes.HANDLE, LPSECURITY_ATTRIBUTES, SIZE_T, wintypes.LPVOID, wintypes.LPVOID, wintypes.DWORD, wintypes.LPDWORD),
+    wintypes.HANDLE
 )
-def EnumProcessModules(hProcess, lphModule, cb, lpcbNeeded):
-    return psapi.EnumProcessModules(hProcess, lphModule, cb, lpcbNeeded)
+def CreateRemoteThread(hProcess, lpThreadAttributes, dwStackSize, lpStartAddress, lpParameter, dwCreationFlags, lpThreadId):
+    return kernel32.CreateRemoteThread(hProcess, lpThreadAttributes, dwStackSize, lpStartAddress, lpParameter, dwCreationFlags, lpThreadId)
 
 
 @msdn_wrap(
@@ -139,8 +140,16 @@ def GetModuleBaseNameA(hProcess, hModule, lpBaseName, nSize):
 
 
 @msdn_wrap(
-    (wintypes.HANDLE, LPSECURITY_ATTRIBUTES, SIZE_T, wintypes.LPVOID, wintypes.LPVOID, wintypes.DWORD, wintypes.LPDWORD),
-    wintypes.HANDLE
+    (wintypes.HANDLE, ctypes.POINTER(wintypes.HMODULE), wintypes.DWORD, wintypes.LPDWORD),
+    wintypes.BOOL
 )
-def CreateRemoteThread(hProcess, lpThreadAttributes, dwStackSize, lpStartAddress, lpParameter, dwCreationFlags, lpThreadId):
-    return kernel32.CreateRemoteThread(hProcess, lpThreadAttributes, dwStackSize, lpStartAddress, lpParameter, dwCreationFlags, lpThreadId)
+def EnumProcessModules(hProcess, lphModule, cb, lpcbNeeded):
+    return psapi.EnumProcessModules(hProcess, lphModule, cb, lpcbNeeded)
+
+
+@msdn_wrap(
+    (ctypes.POINTER(wintypes.DWORD), wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)),
+    wintypes.BOOL
+)
+def EnumProcesses(lpidProcess, cb, lpcbNeeded):
+    return psapi.EnumProcesses(lpidProcess, cb, lpcbNeeded)
