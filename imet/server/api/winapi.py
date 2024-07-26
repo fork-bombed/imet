@@ -16,17 +16,20 @@ MEM_RELEASE = 0x00008000
 PAGE_READWRITE = 0x04
 EXECUTE_IMMEDIATELY = 0x0
 PROCESS_ALL_ACCESS = 0x000F0000 | 0x00100000 | 0xFFF
+CREATE_SUSPENDED = 0x00000004
 
 
 class _SECURITY_ATTRIBUTES(ctypes.Structure):
     _fields_ = [
-        ('nLength', wintypes.DWORD),
-        ('lpSecurityDescriptor', wintypes.LPVOID),
-        ('bInheritHandle', wintypes.LPBOOL)
+        ("nLength", wintypes.DWORD),
+        ("lpSecurityDescriptor", wintypes.LPVOID),
+        ("bInheritHandle", wintypes.LPBOOL)
     ]
 
 
+
 LPSECURITY_ATTRIBUTES = ctypes.POINTER(_SECURITY_ATTRIBUTES)
+LPTHREAD_START_ROUTINE = ctypes.WINFUNCTYPE(wintypes.DWORD, wintypes.LPVOID)
 
 
 def msdn_wrap(args, res, error_check=True):
@@ -153,3 +156,19 @@ def EnumProcessModules(hProcess, lphModule, cb, lpcbNeeded):
 )
 def EnumProcesses(lpidProcess, cb, lpcbNeeded):
     return psapi.EnumProcesses(lpidProcess, cb, lpcbNeeded)
+
+
+@msdn_wrap(
+    (LPSECURITY_ATTRIBUTES, SIZE_T, LPTHREAD_START_ROUTINE, wintypes.LPVOID, wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)),
+    wintypes.HANDLE
+)
+def CreateThread(lpThreadAttributes, dwStackSize, lpStartAddress, lpParameter, dwCreationFlags, lpThreadId):
+    return kernel32.CreateThread(lpThreadAttributes, dwStackSize, lpStartAddress, lpParameter, dwCreationFlags, lpThreadId)
+
+
+@msdn_wrap(
+    (wintypes.HANDLE,),
+    wintypes.DWORD
+)
+def ResumeThread(hThread):
+    return kernel32.ResumeThread(hThread)
