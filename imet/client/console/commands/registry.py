@@ -1,5 +1,6 @@
 from typing import Callable
 from imet.client.console import interface
+import asyncio
 
 
 class IMETCommandException(Exception):
@@ -16,11 +17,12 @@ class IMETExit(Exception):
 
 
 class Command:
-    def __init__(self, name: str, func: Callable, shortcuts: list[str]|None = None, description: str|None = None, **kwargs):
+    def __init__(self, name: str, func: Callable, shortcuts: list[str]|None = None, description: str|None = None, usage: str|None = None, **kwargs):
         self.name = name
         self.func = func
         self.shortcuts = shortcuts or []
         self.description = description
+        self.usage = usage
         self.func_args = kwargs
 
 
@@ -41,13 +43,23 @@ class CommandRegistry:
         return self.commands.get(command_name)
     
 
-def process_command(command_registry: CommandRegistry, command_str: str, cli: interface.CLI):
+async def process_command(command_registry: CommandRegistry, command_str: str, cli: interface.CLI):
     parts = command_str.split()
     if not parts:
         return
     command_name = parts[0]
     command = command_registry.find_command(command_name)
     if command:
-        command.func(args=parts[1:], **command.func_args)
+        try:
+            if asyncio.iscoroutinefunction(command.func):
+                await command.func(args=parts[1:], **command.func_args)
+            else:
+                command.func(args=parts[1:], **command.func_args)
+        except IMETExit:
+            raise
+        except IMETCommandException:
+            raise
+        except Exception as e:
+            raise IMETCommandException(f"Error executing command {command_name}: {e}")
     else:
         raise IMETCommandException(f"Unknown command {command_name}")

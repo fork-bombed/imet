@@ -3,19 +3,35 @@ from rich.text import Text
 from rich.table import Table
 import imet
 import pyfiglet
+import asyncio
+
+from imet.client.network.connection import WebSocketClient
 
 
 class CLI:
     def __init__(self, name: str = "imet"):
         self.name = name
         self.context = None
+        self.session = None
         self.console = Console()
+        self.ping_task = None
 
     def set_context(self, context: str|None):
         self.context = context
 
-    def set_no_context(self):
-        self.set_context(None)
+    async def new_session(self, host: str):
+        if self.session is not None:
+            await self.stop_session()
+        self.session = WebSocketClient(f"ws://{host}")
+        await self.session.connect()
+        if self.session.is_connected():
+            self.context = host
+    
+    async def stop_session(self):
+        if self.session is not None:
+            await self.session.disconnect()
+            self.session = None
+            self.context = None
 
     def output_banner(self):
         ascii_art = pyfiglet.figlet_format(self.name, font="3d-ascii").rstrip()
@@ -50,14 +66,14 @@ class CLI:
         prompt_text.append(prompt)
         self.console.print(prompt_text)
 
-    def get_input(self) -> str:
+    async def get_input(self) -> str:
         prompt_text = Text()
         prompt_text.append(self.name, style="underline bold")
         if self.context is not None:
-            prompt_text.append(f" ({self.context})", style="bold red")
+            prompt_text.append(f" ({self.context})", style="bold green")
         prompt_text.append(" > ", style="bold")
         self.console.print(prompt_text, end="")
-        return input()
+        return await asyncio.to_thread(input)
     
     def output_table(self, headers: list[str], rows: list[list[str]]):
         table = Table(show_header=True, header_style="bold cyan", box=None)

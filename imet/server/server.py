@@ -1,6 +1,16 @@
-from imet.server.api import imetapi
+from imet.client.console import interface
+import asyncio
+from imet.server.network.connection import WebSocketServer
 
-with imetapi.create_thread(suspended=True) as hthread:
-    print(hthread)
-    success = imetapi.resume_thread(hthread)
-    print(success)
+
+console = interface.CLI()
+
+console.output_banner()
+console.output("Welcome to IMET server")
+
+server = WebSocketServer(cli=console)
+
+try:
+    asyncio.run(server.start())
+except KeyboardInterrupt:
+    asyncio.run(server.stop())
