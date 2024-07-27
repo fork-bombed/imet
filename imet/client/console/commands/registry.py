@@ -60,6 +60,6 @@ async def process_command(command_registry: CommandRegistry, command_str: str, c
         except IMETCommandException:
             raise
         except Exception as e:
-            raise IMETCommandException(f"Error executing command {command_name}: {e}")
+            raise IMETCommandException(f"Error executing command \"{command_name}\": {e}")
     else:
-        raise IMETCommandException(f"Unknown command {command_name}")
+        raise IMETCommandException(f"Unknown command \"{command_name}\"")

@@ -1,12 +1,12 @@
-import asyncio
 import websockets
 from websockets.exceptions import WebSocketException
 import imet
 from imet.client.console import interface
+from imet.server.network import actions
 
 
 class WebSocketServer:
-    def __init__(self, host=imet.HOST, port=imet.PORT, cli=interface.CLI, ping_interval=20, ping_timeout=10):
+    def __init__(self, cli: interface.CLI, host: str = imet.HOST, port: int = imet.PORT, ping_interval=20, ping_timeout=10):
         self.host = host
         self.port = port
         self.server = None
@@ -26,23 +26,21 @@ class WebSocketServer:
         self.cli.output(f"Server started and listening on {self.host}:{self.port}")
         await self.server.wait_closed()
 
-    async def handle_connection(self, websocket, path):
-        # Add the new client to the set of connected clients
+    async def handle_connection(self, websocket: websockets.WebSocketServerProtocol, path: str):
         self.clients.add(websocket)
         self.cli.output(f"New connection from {websocket.remote_address}")
         try:
             async for message in websocket:
                 self.cli.output(f"Received message from {websocket.remote_address}: {message}")
-                # Handle incoming message (e.g., broadcast to all clients)
-                await self.handle_message(websocket, message)
+                await actions.process_request(
+                    websocket,
+                    message
+                )
         except WebSocketException as e:
             self.cli.error(f"Connection error: {e}")
         finally:
             self.clients.remove(websocket)
             self.cli.warn(f"Connection closed for {websocket.remote_address}")
-
-    async def handle_message(self, websocket, message):
-        await websocket.send(f"Echo: {message}")
 
     async def stop(self):
         if self.server:

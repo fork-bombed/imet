@@ -43,10 +43,12 @@ async def send_command(cli: interface.CLI, args: list[str], registry: CommandReg
     if len(args) < 1:
         raise IMETCommandException("No args")
     await cli.session.send(" ".join(args))
+    response = await cli.session.receive()
+    cli.output(f"Response from server: {response}")
 
 
 def register_commands(registry: CommandRegistry, cli: interface.CLI):
-    registry.register_command(
+    commands = [
         Command(
             name="help",
             shortcuts=["?"],
@@ -54,19 +56,15 @@ def register_commands(registry: CommandRegistry, cli: interface.CLI):
             func=help_command,
             cli=cli,
             registry=registry
-        )
-    )
-    registry.register_command(
+        ),
         Command(
             name="exit",
-            shortcuts=["quit"],
+            shortcuts=["quit", "q"],
             description="Exits IMET",
             func=exit_command,
             cli=cli,
             registry=registry
-        )
-    )
-    registry.register_command(
+        ),
         Command(
             name="connect",
             shortcuts=["c", "conn"],
@@ -75,9 +73,7 @@ def register_commands(registry: CommandRegistry, cli: interface.CLI):
             func=connect_command,
             cli=cli,
             registry=registry
-        )
-    )
-    registry.register_command(
+        ),
         Command(
             name="disconnect",
             shortcuts=["d"],
@@ -86,9 +82,7 @@ def register_commands(registry: CommandRegistry, cli: interface.CLI):
             func=disconnect_command,
             cli=cli,
             registry=registry
-        )
-    )
-    registry.register_command(
+        ),
         Command(
             name="send",
             shortcuts=["s"],
@@ -98,4 +92,7 @@ def register_commands(registry: CommandRegistry, cli: interface.CLI):
             cli=cli,
             registry=registry
         )
-    )
+    ]
+
+    for command in commands:
+        registry.register_command(command)

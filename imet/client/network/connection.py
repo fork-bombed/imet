@@ -29,7 +29,7 @@ class WebSocketClient:
         if self.connected:
             await self.connection.send(message)
 
-    async def receive(self):
+    async def receive(self) -> str|bytes:
         if self.connected:
             return await self.connection.recv()
         else:
