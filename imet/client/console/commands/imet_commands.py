@@ -88,7 +88,7 @@ async def interactive_command(cli: interface.CLI, args: list[str], registry: Com
                         sys.stdout.write(stdout)
                         sys.stdout.flush()
             except Exception as e:
-                print(f"Error: {e}")
+                cli.error(f"Error: {e}")
 
     def custom_run_cell(shell, code):
         if code.strip() in ["exit()", "quit()", "exit", "quit"]:
