@@ -45,16 +45,6 @@ async def disconnect_command(cli: interface.CLI, args: list[str], registry: Comm
         raise IMETCommandException("No connected sessions found")
     await cli.stop_session()
     cli.warn("Session disconnected")
-    
-
-async def send_command(cli: interface.CLI, args: list[str], registry: CommandRegistry):
-    if cli.session is None or not cli.session.is_connected():
-        raise IMETCommandException("No connected sessions found")
-    if len(args) < 1:
-        raise IMETCommandException("No args")
-    await cli.session.send(" ".join(args))
-    response = await cli.session.receive()
-    cli.output(f"Response from server: {response}")
 
 
 async def interactive_command(cli: interface.CLI, args: list[str], registry: CommandRegistry):
@@ -148,18 +138,9 @@ def register_commands(registry: CommandRegistry, cli: interface.CLI):
             registry=registry
         ),
         Command(
-            name="send",
-            shortcuts=["s"],
-            description="Send a message to server",
-            usage="send <message>",
-            func=send_command,
-            cli=cli,
-            registry=registry
-        ),
-        Command(
             name="interactive",
             shortcuts=["i"],
-            description="Open remove IPython console on the server",
+            description="Open remote IPython console on the server",
             usage="interactive",
             func=interactive_command,
             cli=cli,
