@@ -21,7 +21,9 @@ def help_command(cli: interface.CLI, args: list[str], registry: CommandRegistry)
     cli.output_table(headers, rows)
 
 
-def exit_command(cli: interface.CLI, args: list[str], registry: CommandRegistry):
+async def exit_command(cli: interface.CLI, args: list[str], registry: CommandRegistry):
+    if cli.session.is_connected():
+        await cli.stop_session()
     cli.warn("Exiting IMET...")
     raise IMETExit()
 
@@ -71,6 +73,7 @@ async def interactive_command(cli: interface.CLI, args: list[str], registry: Com
                 shell.execution_count += 1
                 if response is not None:
                     output = response.get("output")
+                    stdout = response.get("stdout")
                     if output is not None:
                         if response.get("status") == "ok":
                             try:
@@ -81,11 +84,16 @@ async def interactive_command(cli: interface.CLI, args: list[str], registry: Com
                         else:
                             sys.stderr.write(f"{output}\n")
                             sys.stderr.flush()
+                    elif stdout:
+                        sys.stdout.write(stdout)
+                        sys.stdout.flush()
             except Exception as e:
                 print(f"Error: {e}")
 
     def custom_run_cell(shell, code):
-        if not code.strip().startswith("%"):
+        if code.strip() in ["exit()", "quit()", "exit", "quit"]:
+            shell.ask_exit()
+        elif not code.strip().startswith("%"):
             asyncio.run(execute_remote(shell, cli, code))
         else:
             shell.original_run_cell(code)

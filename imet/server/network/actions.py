@@ -3,6 +3,8 @@ import msgpack
 from imet.client.console import interface
 from IPython.core.interactiveshell import InteractiveShell
 import traceback
+import io
+import sys
 
 
 async def process_request(websocket: websockets.WebSocketServerProtocol, data: bytes, cli: interface.CLI, ipython_shell: InteractiveShell):
@@ -14,32 +16,45 @@ async def process_request(websocket: websockets.WebSocketServerProtocol, data: b
 async def handle_ipython(websocket: websockets.WebSocketServerProtocol, cli: interface.CLI, request: dict, ipython_shell: InteractiveShell):
     command = request.get("command")
     if command is not None:
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        original_stdout = sys.stdout
+        original_stderr = sys.stderr
+        sys.stdout = stdout
+        sys.stdin = stderr
         try:
             result = ipython_shell.run_cell(command)
-            print(result, result.success)
+            captured_stdout = stdout.getvalue()
+            captured_stderr = stderr.getvalue()
             if result.success:
-                output = str(result.result)
+                output = None if result.result is None else str(result.result)
             else:
-                # Generate a detailed traceback
                 tb_list = traceback.format_exception(
                     result.error_in_exec.__class__,
                     result.error_in_exec,
                     result.error_in_exec.__traceback__
                 )
-                output = ''.join(tb_list)
+                output = "".join(tb_list)
 
             response = {
                 "action": "ipython",
                 "status": "ok" if result.success else "error",
-                "output": output
+                "output": output,
+                "stdout": captured_stdout,
+                "stderr": captured_stderr
             }
         except Exception as e:
             tb = traceback.format_exc()
             response = {
                 "action": "ipython",
                 "status": "error",
-                "output": f"Exception: {str(e)}\n{tb}"
+                "output": f"Exception: {str(e)}\n{tb}",
+                "stdout": captured_stdout,
+                "stderr": captured_stderr
             }
+        finally:
+            sys.stdout = original_stdout
+            sys.stderr = original_stderr
         packed_response = msgpack.packb(response)
         cli.output(f"Sending message: {str(packed_response)}")
         await websocket.send(packed_response)
