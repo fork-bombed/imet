@@ -22,7 +22,7 @@ def help_command(cli: interface.CLI, args: list[str], registry: CommandRegistry)
 
 
 async def exit_command(cli: interface.CLI, args: list[str], registry: CommandRegistry):
-    if cli.session.is_connected():
+    if cli.session is not None and cli.session.is_connected():
         await cli.stop_session()
     cli.warn("Exiting IMET...")
     raise IMETExit()
@@ -60,7 +60,6 @@ async def interactive_command(cli: interface.CLI, args: list[str], registry: Com
                     "command": code
                 })
                 response = await cli.session.receive()
-                shell.execution_count += 1
                 if response is not None:
                     output = response.get("output")
                     stdout = response.get("stdout")
@@ -71,12 +70,17 @@ async def interactive_command(cli: interface.CLI, args: list[str], registry: Com
                             except (ValueError, SyntaxError):
                                 evaluated_output = output
                             shell.displayhook(evaluated_output)
+                            shell.history_manager.store_inputs(shell.execution_count, code)
+                            shell.history_manager.store_output(evaluated_output)
                         else:
-                            sys.stderr.write(f"{output}\n")
+                            sys.stderr.write(stdout)
                             sys.stderr.flush()
+                            shell.history_manager.store_inputs(shell.execution_count, code)
                     elif stdout:
                         sys.stdout.write(stdout)
                         sys.stdout.flush()
+                        shell.history_manager.store_inputs(shell.execution_count, code)
+                    shell.execution_count += 1
             except Exception as e:
                 cli.error(f"Error: {e}")
 
