@@ -6,7 +6,7 @@ from IPython.core.interactiveshell import InteractiveShell
 
 async def setup_ipython_shell():
     ipython_shell = InteractiveShell.instance()
-    await ipython_shell.run_code("from imet.server.api import imetapi, winapi")
+    await ipython_shell.run_code("from imet.server.api import imetapi, winapi, payloads")
     return ipython_shell
 
 

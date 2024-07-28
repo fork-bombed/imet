@@ -26,13 +26,10 @@ class RemoteCompleter(Completer):
         
     def completions(self, text, offset):
         try:
-            last_dot_index = text.rfind(".")
-            if last_dot_index != -1:
-                incomplete = text[last_dot_index+1:]
-            else:
-
-                incomplete = text
-            
+            last_non_alpha_index = len(text) - 1
+            while last_non_alpha_index >= 0 and text[last_non_alpha_index].isalnum():
+                last_non_alpha_index -= 1
+            incomplete = text[last_non_alpha_index + 1:]
             completions = asyncio.run(self.complete_request(text))
             for match in completions:
                 yield Completion(
