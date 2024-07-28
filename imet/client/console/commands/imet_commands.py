@@ -3,6 +3,8 @@ from imet.client.console import interface
 from IPython.terminal.embed import InteractiveShellEmbed
 import asyncio
 import nest_asyncio
+import sys
+import ast
 
 
 nest_asyncio.apply()
@@ -54,27 +56,45 @@ async def send_command(cli: interface.CLI, args: list[str], registry: CommandReg
 
 
 async def interactive_command(cli: interface.CLI, args: list[str], registry: CommandRegistry):
-    
     if cli.session is None or not cli.session.is_connected():
         raise IMETCommandException("No connected sessions found")
     cli.output("Starting interactive IPython console...")
 
-    async def post_run_cell(result, cli: interface.CLI):
+    async def execute_remote(shell, cli, code):
         if cli.session:
             try:
-                if not result.info.raw_cell.startswith("%"):  # Skip magic commands
-                    await cli.session.send(result.info.raw_cell)
-        #             response = await cli.session.receive()
-        #             print(response)
+                await cli.session.send({
+                    "action": "ipython",
+                    "command": code
+                })
+                response = await cli.session.receive()
+                shell.execution_count += 1
+                if response is not None:
+                    output = response.get("output")
+                    if output is not None:
+                        if response.get("status") == "ok":
+                            try:
+                                evaluated_output = ast.literal_eval(output)
+                            except (ValueError, SyntaxError):
+                                evaluated_output = output
+                            shell.displayhook(evaluated_output)
+                        else:
+                            sys.stderr.write(f"{output}\n")
+                            sys.stderr.flush()
             except Exception as e:
                 print(f"Error: {e}")
 
+    def custom_run_cell(shell, code):
+        if not code.strip().startswith("%"):
+            asyncio.run(execute_remote(shell, cli, code))
+        else:
+            shell.original_run_cell(code)
+
     try:
         shell = InteractiveShellEmbed()
-        shell.events.register(
-            "post_run_cell",
-            lambda result: asyncio.create_task(post_run_cell(result, cli))
-        )
+        shell.execution_count = 0
+        shell.original_run_cell = shell.run_cell
+        shell.run_cell = lambda code, **kwargs: custom_run_cell(shell, code)
         shell.mainloop()
     except Exception as e:
         cli.error(f"Error in interactive session: {e}")

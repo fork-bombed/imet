@@ -3,6 +3,7 @@ from websockets.exceptions import WebSocketException
 import imet
 from imet.client.console import interface
 from imet.server.network import actions
+from IPython.core.interactiveshell import InteractiveShell
 
 
 class WebSocketServer:
@@ -14,6 +15,7 @@ class WebSocketServer:
         self.ping_timeout = ping_timeout
         self.clients = set()
         self.cli = cli
+        self.ipython_shell = InteractiveShell.instance()
 
     async def start(self):
         self.server = await websockets.serve(
@@ -35,7 +37,8 @@ class WebSocketServer:
                 await actions.process_request(
                     websocket,
                     message,
-                    self.cli
+                    self.cli,
+                    self.ipython_shell
                 )
         except WebSocketException as e:
             self.cli.error(f"Connection error: {e}")
