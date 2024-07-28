@@ -2,6 +2,7 @@ import websockets
 import msgpack
 from imet.client.console import interface
 from IPython.core.interactiveshell import InteractiveShell
+from IPython.core.completer import provisionalcompleter
 import traceback
 import io
 import sys
@@ -11,6 +12,8 @@ async def process_request(websocket: websockets.WebSocketServerProtocol, data: b
     request = msgpack.unpackb(data, raw=False)
     if request.get("action") == "ipython":
         await handle_ipython(websocket, cli, request, ipython_shell)
+    elif request.get("action") == "autocomplete":
+        await handle_autocomplete(websocket, cli, request, ipython_shell)
 
 
 async def handle_ipython(websocket: websockets.WebSocketServerProtocol, cli: interface.CLI, request: dict, ipython_shell: InteractiveShell):
@@ -58,3 +61,25 @@ async def handle_ipython(websocket: websockets.WebSocketServerProtocol, cli: int
         packed_response = msgpack.packb(response)
         cli.output(f"Sending message: {str(packed_response)}")
         await websocket.send(packed_response)
+
+
+async def handle_autocomplete(websocket: websockets.WebSocketServerProtocol, cli: interface.CLI, request: dict, ipython_shell: InteractiveShell):
+    text = request.get("text", "")
+    try:
+        completer = ipython_shell.Completer
+        with provisionalcompleter():
+            completions = list(completer.completions(text, len(text)))
+        matches = [completion.text for completion in completions]
+        response = {
+            "action": "autocomplete",
+            "matches": matches
+        }
+    except Exception as e:
+        response = {
+            "action": "autocomplete",
+            "error": str(e),
+            "matches": []
+        }
+    packed_response = msgpack.packb(response)
+    cli.output(f"Sending autocomplete suggestions: {str(packed_response)}")
+    await websocket.send(packed_response)

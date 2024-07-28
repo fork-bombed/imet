@@ -1,6 +1,7 @@
 from imet.client.console.commands.registry import Command, CommandRegistry, IMETCommandException, IMETExit
 from imet.client.console import interface
 from IPython.terminal.embed import InteractiveShellEmbed
+from IPython.core.completer import Completer, Completion
 import asyncio
 import nest_asyncio
 import sys
@@ -8,6 +9,39 @@ import ast
 
 
 nest_asyncio.apply()
+
+
+class RemoteCompleter(Completer):
+    def __init__(self, cli):
+        super().__init__()
+        self.cli = cli
+
+    async def complete_request(self, text: str) -> list[str]:
+        await self.cli.session.send({
+            "action": "autocomplete",
+            "text": text
+        })
+        response = await self.cli.session.receive()
+        return response.get("matches", [])
+        
+    def completions(self, text, offset):
+        try:
+            last_dot_index = text.rfind(".")
+            if last_dot_index != -1:
+                incomplete = text[last_dot_index+1:]
+            else:
+
+                incomplete = text
+            
+            completions = asyncio.run(self.complete_request(text))
+            for match in completions:
+                yield Completion(
+                    text=match,
+                    start=offset - len(incomplete),
+                    end=offset
+                )
+        except Exception as e:
+            self.cli.error(f"Completion error: {e}")
 
 
 def help_command(cli: interface.CLI, args: list[str], registry: CommandRegistry):
@@ -95,6 +129,8 @@ async def interactive_command(cli: interface.CLI, args: list[str], registry: Com
     try:
         shell = InteractiveShellEmbed()
         shell.execution_count = 0
+        remote_completer = RemoteCompleter(cli)
+        shell.Completer = remote_completer
         shell.original_run_cell = shell.run_cell
         shell.run_cell = lambda code, **kwargs: custom_run_cell(shell, code)
         shell.mainloop()

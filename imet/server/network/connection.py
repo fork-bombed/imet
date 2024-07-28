@@ -7,7 +7,7 @@ from IPython.core.interactiveshell import InteractiveShell
 
 
 class WebSocketServer:
-    def __init__(self, cli: interface.CLI, host: str = imet.HOST, port: int = imet.PORT, ping_interval=20, ping_timeout=10):
+    def __init__(self, cli: interface.CLI, ipython_shell: InteractiveShell, host: str = imet.HOST, port: int = imet.PORT, ping_interval=20, ping_timeout=10):
         self.host = host
         self.port = port
         self.server = None
@@ -15,7 +15,7 @@ class WebSocketServer:
         self.ping_timeout = ping_timeout
         self.clients = set()
         self.cli = cli
-        self.ipython_shell = InteractiveShell.instance()
+        self.ipython_shell = ipython_shell
 
     async def start(self):
         self.server = await websockets.serve(
