@@ -15,6 +15,8 @@ async def main():
 
     while True:
         user_input = await console.get_input()
+        if user_input.strip() == "":
+            continue
         try:
             await process_command(
                 command_registry=command_registry,
@@ -25,6 +27,9 @@ async def main():
             console.error(e.message)
         except IMETExit as e:
             break
+        except Exception as e:
+            console.error(e)
+
 
 if __name__ == "__main__":
     asyncio.run(main())

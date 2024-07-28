@@ -1,14 +1,17 @@
 import websockets
 import asyncio
+import msgpack
 from websockets.exceptions import WebSocketException
+import imet
 
 
 class WebSocketClient:
-    def __init__(self, uri: str):
+    def __init__(self, uri: str, cli: "imet.client.console.interface.CLI"):
         self.uri = uri
         self.connection = None
         self.connected = False
         self.ping_task = None
+        self.cli = cli
 
     def is_connected(self):
         return self.connected
@@ -23,15 +26,17 @@ class WebSocketClient:
             self.connected = True
             self.ping_task = asyncio.create_task(self.ping())
         except WebSocketException:
-            self.connected = False
+            await self.cli.stop_session()
 
-    async def send(self, message: str):
+    async def send(self, data: dict):
         if self.connected:
-            await self.connection.send(message)
+            packed_data = msgpack.packb(data)
+            await self.connection.send(packed_data)
 
-    async def receive(self) -> str|bytes:
+    async def receive(self) -> dict:
         if self.connected:
-            return await self.connection.recv()
+            data = await self.connection.recv()
+            return msgpack.unpackb(data, raw=False)
         else:
             return None
         
@@ -41,17 +46,18 @@ class WebSocketClient:
                 await self.connection.ping()
                 await asyncio.sleep(5)
             except websockets.ConnectionClosed:
-                self.connected = False
-                raise
+                await self.cli.stop_session(connection_closed=True)
+                break
             except asyncio.CancelledError:
                 break
             except Exception:
+                await self.cli.stop_session(connection_closed=True)
                 break
 
     async def disconnect(self):
         if self.connection:
             await self.connection.close()
-            self.connected = False
+        self.connected = False
+        if self.ping_task:
             self.ping_task.cancel()
-            await self.ping_task
-            self.ping_task = None
+        self.connection = None

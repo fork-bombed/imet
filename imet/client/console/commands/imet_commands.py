@@ -1,5 +1,11 @@
 from imet.client.console.commands.registry import Command, CommandRegistry, IMETCommandException, IMETExit
 from imet.client.console import interface
+from IPython.terminal.embed import InteractiveShellEmbed
+import asyncio
+import nest_asyncio
+
+
+nest_asyncio.apply()
 
 
 def help_command(cli: interface.CLI, args: list[str], registry: CommandRegistry):
@@ -47,6 +53,36 @@ async def send_command(cli: interface.CLI, args: list[str], registry: CommandReg
     cli.output(f"Response from server: {response}")
 
 
+async def interactive_command(cli: interface.CLI, args: list[str], registry: CommandRegistry):
+    
+    if cli.session is None or not cli.session.is_connected():
+        raise IMETCommandException("No connected sessions found")
+    cli.output("Starting interactive IPython console...")
+
+    async def post_run_cell(result, cli: interface.CLI):
+        if cli.session:
+            try:
+                if not result.info.raw_cell.startswith("%"):  # Skip magic commands
+                    await cli.session.send(result.info.raw_cell)
+        #             response = await cli.session.receive()
+        #             print(response)
+            except Exception as e:
+                print(f"Error: {e}")
+
+    try:
+        shell = InteractiveShellEmbed()
+        shell.events.register(
+            "post_run_cell",
+            lambda result: asyncio.create_task(post_run_cell(result, cli))
+        )
+        shell.mainloop()
+    except Exception as e:
+        cli.error(f"Error in interactive session: {e}")
+    finally:
+        cli.warn("Exited interactive IPython console")
+
+
+
 def register_commands(registry: CommandRegistry, cli: interface.CLI):
     commands = [
         Command(
@@ -89,6 +125,15 @@ def register_commands(registry: CommandRegistry, cli: interface.CLI):
             description="Send a message to server",
             usage="send <message>",
             func=send_command,
+            cli=cli,
+            registry=registry
+        ),
+        Command(
+            name="interactive",
+            shortcuts=["i"],
+            description="Open remove IPython console on the server",
+            usage="interactive",
+            func=interactive_command,
             cli=cli,
             registry=registry
         )

@@ -34,7 +34,8 @@ class WebSocketServer:
                 self.cli.output(f"Received message from {websocket.remote_address}: {message}")
                 await actions.process_request(
                     websocket,
-                    message
+                    message,
+                    self.cli
                 )
         except WebSocketException as e:
             self.cli.error(f"Connection error: {e}")
@@ -46,4 +47,4 @@ class WebSocketServer:
         if self.server:
             self.server.close()
             await self.server.wait_closed()
-            self.cli.warn("Server stopped.")
+            self.cli.warn("Server stopped")
