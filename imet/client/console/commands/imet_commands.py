@@ -167,6 +167,8 @@ async def create_sample_command(cli: interface.CLI, args: list[str], registry: C
         template = f.read()
 
     description = await cli.prompt("Sample description: ")
+    if description is None:
+        return
     template = template.replace("{sample_name}", valid_sample_name).replace("{description}", description)
     
     with open(script_path, "w") as f:

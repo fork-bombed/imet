@@ -2,6 +2,7 @@ from imet.client.console import interface
 from imet.client.console.commands import imet_commands
 from imet.client.console.commands.registry import CommandRegistry, IMETCommandException, IMETExit, process_command
 import asyncio
+import sys
 
 
 async def main():
@@ -32,4 +33,7 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt as e:
+        sys.exit(0)

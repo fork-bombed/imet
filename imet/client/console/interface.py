@@ -74,19 +74,33 @@ class CLI:
         self.console.print(prompt_text, end="")
         return await asyncio.to_thread(input)
     
-    async def prompt(self, message: str) -> str:
+    def input_with_interrupt(self):
+        try:
+            return input()
+        except KeyboardInterrupt:
+            raise asyncio.CancelledError
+    
+    async def prompt(self, message: str) -> str|None:
         prompt_text = Text()
         prompt_text.append("[?] ", style="bold magenta")
         prompt_text.append(message, style="magenta")
         self.console.print(prompt_text, end="")
-        return await asyncio.to_thread(input)
+        try:
+            return await asyncio.to_thread(self.input_with_interrupt)
+        except asyncio.CancelledError:
+            self.console.print()
+            return None
     
     async def prompt_yes_no(self, message: str) -> bool:
         prompt_text = Text()
         prompt_text.append("[?] ", style="bold magenta")
         prompt_text.append(f"{message} [y/N]", style="magenta")
         self.console.print(prompt_text, end=" ")
-        response = await asyncio.to_thread(input)
+        try:
+            response = await asyncio.to_thread(self.input_with_interrupt)
+        except asyncio.CancelledError:
+            self.console.print()
+            return False
         if response.lower() == "y":
             return True
         return False
