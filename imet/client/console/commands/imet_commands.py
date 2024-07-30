@@ -175,6 +175,62 @@ async def create_sample_command(cli: interface.CLI, args: list[str], registry: C
     cli.output(f"Sample \"{valid_sample_name}\" written to {script_path}")
 
 
+def extract_description_from_docstring(content: str) -> str:
+    match = re.search(r'"""(.*?)"""', content, re.DOTALL)
+    if match:
+        docstring = match.group(1)
+        description_match = re.search(r"Description:\s*(.*)", docstring)
+        if description_match:
+            return description_match.group(1).strip()
+    return "N/A"
+
+
+async def samples_command(cli: interface.CLI, args: list[str], registry: CommandRegistry):
+    if cli.session and cli.session.is_connected():
+        cli.output("Searching for remote samples")
+        await cli.session.send({
+            "action": "samples",
+            "search": args
+        })
+        response = await cli.session.receive()
+        error = response.get("error")
+        if error is not None:
+            cli.error(error)
+            return
+        samples = response.get("samples", [])
+        cli.output_table(["sample name", "description"], samples)
+        return
+    
+    cli.output("Searching for local samples")
+    project_root = imet.get_project_root()
+    samples_directory = os.path.join(project_root, "samples")
+    samples = []
+    for filename in os.listdir(samples_directory):
+        if filename.endswith(".py") and not filename.startswith("_"):
+            file_path = os.path.join(samples_directory, filename)
+            with open(file_path) as f:
+                content = f.read()
+
+            sample_name = filename.split(".py")[0]
+            description = extract_description_from_docstring(content)
+            samples.append((sample_name, description))
+
+    if args:
+        filtered_samples = []
+        for sample_name, description in samples:
+            if any(term.lower() in sample_name.lower() or term.lower() in description.lower() for term in args):
+                filtered_samples.append((sample_name, description))
+        samples = filtered_samples
+    if samples:
+        cli.output_table(["sample name", "description"], samples)
+    else:
+        matching_text = ""
+        if args:
+            args_joined = ", ".join(args)
+            matching_text = f" matching term{'s' if len(args) > 1 else ''} {args_joined}"
+        cli.error(f"No samples found{matching_text}")
+
+
 def register_commands(registry: CommandRegistry, cli: interface.CLI):
     commands = [
         Command(
@@ -226,6 +282,15 @@ def register_commands(registry: CommandRegistry, cli: interface.CLI):
             description="Create a new sample script",
             usage="create <sample_name>",
             func=create_sample_command,
+            cli=cli,
+            registry=registry
+        ),
+        Command(
+            name="samples",
+            shortcuts=["list", "ls"],
+            description="List all samples (filter by matching search term if provided)",
+            usage="samples <search?>",
+            func=samples_command,
             cli=cli,
             registry=registry
         )

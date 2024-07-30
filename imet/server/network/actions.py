@@ -6,14 +6,20 @@ from IPython.core.completer import provisionalcompleter
 import traceback
 import io
 import sys
+import re
+import os
+import imet
 
 
 async def process_request(websocket: websockets.WebSocketServerProtocol, data: bytes, cli: interface.CLI, ipython_shell: InteractiveShell):
     request = msgpack.unpackb(data, raw=False)
-    if request.get("action") == "ipython":
+    action = request.get("action")
+    if action == "ipython":
         await handle_ipython(websocket, cli, request, ipython_shell)
-    elif request.get("action") == "autocomplete":
+    elif action == "autocomplete":
         await handle_autocomplete(websocket, cli, request, ipython_shell)
+    elif action == "samples":
+        await handle_samples_list(websocket, cli, request)
 
 
 async def handle_ipython(websocket: websockets.WebSocketServerProtocol, cli: interface.CLI, request: dict, ipython_shell: InteractiveShell):
@@ -83,3 +89,60 @@ async def handle_autocomplete(websocket: websockets.WebSocketServerProtocol, cli
     packed_response = msgpack.packb(response)
     cli.output(f"Sending autocomplete suggestions: {str(packed_response)}")
     await websocket.send(packed_response)
+
+
+def extract_description_from_docstring(content: str) -> str:
+    match = re.search(r'"""(.*?)"""', content, re.DOTALL)
+    if match:
+        docstring = match.group(1)
+        description_match = re.search(r"Description:\s*(.*)", docstring)
+        if description_match:
+            return description_match.group(1).strip()
+    return "N/A"
+
+
+async def handle_samples_list(websocket: websockets.WebSocketServerProtocol, cli: interface.CLI, request: dict):
+    samples = []
+    project_root = imet.get_project_root()
+    samples_directory = os.path.join(project_root, "samples")
+
+    if not os.path.exists(samples_directory):
+        cli.error(f"Samples directory not found: {samples_directory}")
+        await websocket.send(msgpack.packb({
+            "action": "samples",
+            "error": "Samples directory not found"
+        }))
+        return
+
+    for filename in os.listdir(samples_directory):
+        if filename.endswith(".py") and not filename.startswith("_"):
+            file_path = os.path.join(samples_directory, filename)
+            with open(file_path) as f:
+                content = f.read()
+
+            sample_name = filename.split(".py")[0]
+            description = extract_description_from_docstring(content)
+            samples.append((sample_name, description))
+
+    search_terms = request.get("search")
+    if search_terms:
+        filtered_samples = []
+        for sample_name, description in samples:
+            if any(term.lower() in sample_name.lower() or term.lower() in description.lower() for term in search_terms):
+                filtered_samples.append((sample_name, description))
+        samples = filtered_samples
+
+    response = {
+        "action": "samples",
+        "samples": samples
+    }
+    if not samples:
+        matching_text = ""
+        if search_terms:
+            args_joined = ", ".join(search_terms)
+            matching_text = f" matching term{'s' if len(search_terms) > 1 else ''} {args_joined}"
+        response = {
+            "action": "samples",
+            "error": f"No samples found{matching_text}"
+        }
+    await websocket.send(msgpack.packb(response))
