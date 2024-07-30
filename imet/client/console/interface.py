@@ -74,6 +74,23 @@ class CLI:
         self.console.print(prompt_text, end="")
         return await asyncio.to_thread(input)
     
+    async def prompt(self, message: str) -> str:
+        prompt_text = Text()
+        prompt_text.append("[?] ", style="bold magenta")
+        prompt_text.append(message, style="magenta")
+        self.console.print(prompt_text, end="")
+        return await asyncio.to_thread(input)
+    
+    async def prompt_yes_no(self, message: str) -> bool:
+        prompt_text = Text()
+        prompt_text.append("[?] ", style="bold magenta")
+        prompt_text.append(f"{message} [y/N]", style="magenta")
+        self.console.print(prompt_text, end=" ")
+        response = await asyncio.to_thread(input)
+        if response.lower() == "y":
+            return True
+        return False
+    
     def output_table(self, headers: list[str], rows: list[list[str]]):
         table = Table(show_header=True, header_style="bold cyan", box=None)
         for header in headers:

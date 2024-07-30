@@ -2,10 +2,13 @@ from imet.client.console.commands.registry import Command, CommandRegistry, IMET
 from imet.client.console import interface
 from IPython.terminal.embed import InteractiveShellEmbed
 from IPython.core.completer import Completer, Completion
+import imet
 import asyncio
 import nest_asyncio
 import sys
 import ast
+import re
+import os
 
 
 nest_asyncio.apply()
@@ -137,6 +140,40 @@ async def interactive_command(cli: interface.CLI, args: list[str], registry: Com
         cli.warn("Exited interactive IPython console")
 
 
+async def create_sample_command(cli: interface.CLI, args: list[str], registry: CommandRegistry):
+    if len(args) < 1:
+        raise IMETCommandException("Create requires a sample name e.g \"create malware_sample_1\"")
+    
+    sample_name = " ".join(args)
+    valid_sample_name = sample_name.lower()
+    valid_sample_name = valid_sample_name.replace(" ", "_").replace("-", "_")
+    valid_sample_name = re.sub(r"[^a-z0-9_]", "", valid_sample_name)
+
+    project_root = imet.get_project_root()
+    samples_directory = os.path.join(project_root, "samples")
+    script_filename = f"{valid_sample_name}.py"
+    script_path = os.path.join(samples_directory, script_filename)
+
+    if os.path.exists(script_path):
+        override = await cli.prompt_yes_no(f"Sample \"{script_filename}\" already exists. Do you want to override it?")
+        if not override:
+            cli.warn("Sample creation cancelled")
+            return
+
+    template_directory = os.path.join(project_root, "server", "emulator")
+    template_path = os.path.join(template_directory, "_template.py")
+
+    with open(template_path) as f:
+        template = f.read()
+
+    description = await cli.prompt("Sample description: ")
+    template = template.replace("{sample_name}", valid_sample_name).replace("{description}", description)
+    
+    with open(script_path, "w") as f:
+        f.write(template)
+
+    cli.output(f"Sample \"{valid_sample_name}\" written to {script_path}")
+
 
 def register_commands(registry: CommandRegistry, cli: interface.CLI):
     commands = [
@@ -180,6 +217,15 @@ def register_commands(registry: CommandRegistry, cli: interface.CLI):
             description="Open remote IPython console on the server",
             usage="interactive",
             func=interactive_command,
+            cli=cli,
+            registry=registry
+        ),
+        Command(
+            name="create",
+            shortcuts=["new", "+"],
+            description="Create a new sample script",
+            usage="create <sample_name>",
+            func=create_sample_command,
             cli=cli,
             registry=registry
         )
