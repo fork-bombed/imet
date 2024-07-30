@@ -281,7 +281,7 @@ def register_commands(registry: CommandRegistry, cli: interface.CLI):
         Command(
             name="create",
             shortcuts=["new", "+"],
-            description="Create a new sample script",
+            description="Create a new local sample script",
             usage="create <sample_name>",
             func=create_sample_command,
             cli=cli,
@@ -291,7 +291,7 @@ def register_commands(registry: CommandRegistry, cli: interface.CLI):
             name="samples",
             shortcuts=["list", "ls"],
             description="List all samples (filter by matching search term if provided)",
-            usage="samples <search?>",
+            usage="samples <terms?>",
             func=samples_command,
             cli=cli,
             registry=registry
