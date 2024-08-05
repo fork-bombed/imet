@@ -1,4 +1,4 @@
-VERSION = 0.2
+VERSION = 0.3
 HOST = "0.0.0.0"
 PORT = 13337
 
