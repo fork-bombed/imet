@@ -187,6 +187,22 @@ def extract_description_from_docstring(content: str) -> str:
     return "N/A"
 
 
+def find_samples() -> list[tuple[str, str]]:
+    project_root = imet.get_project_root()
+    samples_directory = os.path.join(project_root, "samples")
+    samples = []
+    for filename in os.listdir(samples_directory):
+        if filename.endswith(".py") and not filename.startswith("_"):
+            file_path = os.path.join(samples_directory, filename)
+            with open(file_path) as f:
+                content = f.read()
+
+            sample_name = filename.split(".py")[0]
+            description = extract_description_from_docstring(content)
+            samples.append((sample_name, description))
+    return samples
+
+
 async def samples_command(cli: interface.CLI, args: list[str], registry: CommandRegistry):
     if cli.session and cli.session.is_connected():
         cli.output("Searching for remote samples")
@@ -204,18 +220,7 @@ async def samples_command(cli: interface.CLI, args: list[str], registry: Command
         return
     
     cli.output("Searching for local samples")
-    project_root = imet.get_project_root()
-    samples_directory = os.path.join(project_root, "samples")
-    samples = []
-    for filename in os.listdir(samples_directory):
-        if filename.endswith(".py") and not filename.startswith("_"):
-            file_path = os.path.join(samples_directory, filename)
-            with open(file_path) as f:
-                content = f.read()
-
-            sample_name = filename.split(".py")[0]
-            description = extract_description_from_docstring(content)
-            samples.append((sample_name, description))
+    samples = find_samples()
 
     if args:
         filtered_samples = []
@@ -231,6 +236,29 @@ async def samples_command(cli: interface.CLI, args: list[str], registry: Command
             args_joined = ", ".join(args)
             matching_text = f" matching term{'s' if len(args) > 1 else ''} {args_joined}"
         cli.error(f"No samples found{matching_text}")
+
+
+async def emulate_command(cli: interface.CLI, args: list[str], registry: CommandRegistry):
+    if len(args) < 1:
+        raise IMETCommandException("Emulate requires a sample name e.g. \"emulate sample_name\"")
+    
+    sample_name = " ".join(args)
+    
+    if cli.session and cli.session.is_connected():
+        cli.output(f"Sending emulation request for sample \"{sample_name}\"")
+        await cli.session.send({
+            "action": "emulate",
+            "sample_name": sample_name
+        })
+        response = await cli.session.receive()
+        message = response.get("message")
+        error = response.get("error")
+        if message:
+            cli.output(message)
+        if error:
+            cli.error(error)
+    else:
+        raise IMETCommandException("No connected sessions found")
 
 
 def register_commands(registry: CommandRegistry, cli: interface.CLI):
@@ -293,6 +321,15 @@ def register_commands(registry: CommandRegistry, cli: interface.CLI):
             description="List all samples (filter by matching search term if provided)",
             usage="samples <terms?>",
             func=samples_command,
+            cli=cli,
+            registry=registry
+        ),
+        Command(
+            name="emulate",
+            shortcuts=["e", "em", "run"],
+            description="Emulate a sample on the server",
+            usage="emulate <sample_name>",
+            func=emulate_command,
             cli=cli,
             registry=registry
         )

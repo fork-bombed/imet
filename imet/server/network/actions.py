@@ -1,3 +1,4 @@
+import importlib
 import websockets
 import msgpack
 from imet.client.console import interface
@@ -20,6 +21,8 @@ async def process_request(websocket: websockets.WebSocketServerProtocol, data: b
         await handle_autocomplete(websocket, cli, request, ipython_shell)
     elif action == "samples":
         await handle_samples_list(websocket, cli, request)
+    elif action == "emulate":
+        await handle_emulate(websocket, cli, request)
 
 
 async def handle_ipython(websocket: websockets.WebSocketServerProtocol, cli: interface.CLI, request: dict, ipython_shell: InteractiveShell):
@@ -146,3 +149,55 @@ async def handle_samples_list(websocket: websockets.WebSocketServerProtocol, cli
             "error": f"No samples found{matching_text}"
         }
     await websocket.send(msgpack.packb(response))
+
+
+async def handle_emulate(websocket: websockets.WebSocketServerProtocol, cli: interface.CLI, request: dict):
+    sample_name = request.get("sample_name")
+    if sample_name:
+        _, sample_module = find_sample(sample_name)
+        if sample_module is None:
+            response = {
+                "action": "emulate",
+                "error": f"Sample \"{sample_name}\" does not exist"
+            }
+        else:
+            try:
+                if hasattr(sample_module, "emulate") and callable(sample_module.emulate):
+                    cli.output(f"Running sample: {sample_name}")
+                    sample_module.emulate()
+                    response = {
+                        "action": "emulate",
+                        "message": f"Sample \"{sample_name}\" executed successfully"
+                    }
+                else:
+                    response = {
+                        "action": "emulate",
+                        "error": f"The sample '{sample_name}' does not contain a valid 'emulate' function"
+                    }
+            except Exception as e:
+                error_message = f"Error running sample \"{sample_name}\": {e}\n{traceback.format_exc()}"
+                cli.error(error_message)
+                response = {
+                    "action": "emulate",
+                    "error": error_message
+                }
+    else:
+        response = {
+                    "action": "emulate",
+                    "error": "Sample name not provided"
+                }
+
+    await websocket.send(msgpack.packb(response))
+
+
+def find_sample(sample_name: str) -> tuple[str, object|None]:
+    valid_sample_name = sample_name.lower().replace(" ", "_").replace("-", "_")
+    project_root = imet.get_project_root()
+    samples_directory = os.path.join(project_root, "samples")
+    sample_file = os.path.join(samples_directory, f"{valid_sample_name}.py")
+    if not os.path.isfile(sample_file):
+        return sample_file, None
+    spec = importlib.util.spec_from_file_location(valid_sample_name, sample_file)
+    sample_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(sample_module)
+    return sample_file, sample_module
