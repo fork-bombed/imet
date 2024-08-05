@@ -187,9 +187,13 @@ def extract_description_from_docstring(content: str) -> str:
     return "N/A"
 
 
-def find_samples() -> list[tuple[str, str]]:
+def get_samples_directory() -> str:
     project_root = imet.get_project_root()
-    samples_directory = os.path.join(project_root, "samples")
+    return os.path.join(project_root, "samples")
+
+
+def find_samples() -> list[tuple[str, str]]:
+    samples_directory = get_samples_directory()
     samples = []
     for filename in os.listdir(samples_directory):
         if filename.endswith(".py") and not filename.startswith("_"):
@@ -259,6 +263,40 @@ async def emulate_command(cli: interface.CLI, args: list[str], registry: Command
             cli.error(error)
     else:
         raise IMETCommandException("No connected sessions found")
+    
+
+async def upload_command(cli: interface.CLI, args: list[str], registry: CommandRegistry):
+    if len(args) < 1:
+        raise IMETCommandException("Upload requires a sample name e.g \"upload sample_name\"")
+    
+    sample_name = " ".join(args).strip()
+    samples_directory = get_samples_directory()
+    local_file_path = os.path.join(samples_directory, f"{sample_name}.py")
+
+    if not os.path.isfile(local_file_path):
+        raise IMETCommandException(f"Local sample \"{sample_name}\" does not exist")
+
+    with open(local_file_path) as f:
+        script_content = f.read()
+
+    if cli.session and cli.session.is_connected():
+        cli.output(f"Uploading local sample \"{sample_name}\" to remote server")
+        await cli.session.send({
+            "action": "upload",
+            "sample_name": sample_name,
+            "script_content": script_content
+        })
+        response = await cli.session.receive()
+        message = response.get("message")
+        error = response.get("error")
+        if message:
+            cli.output(message)
+        elif error:
+            cli.error(error)
+        else:
+            cli.error("Unexpected error")
+    else:
+        cli.error("No connected sessions found")
 
 
 def register_commands(registry: CommandRegistry, cli: interface.CLI):
@@ -308,7 +346,7 @@ def register_commands(registry: CommandRegistry, cli: interface.CLI):
         ),
         Command(
             name="create",
-            shortcuts=["new", "+"],
+            shortcuts=["n", "new"],
             description="Create a new local sample script",
             usage="create <sample_name>",
             func=create_sample_command,
@@ -330,6 +368,15 @@ def register_commands(registry: CommandRegistry, cli: interface.CLI):
             description="Emulate a sample on the server",
             usage="emulate <sample_name>",
             func=emulate_command,
+            cli=cli,
+            registry=registry
+        ),
+        Command(
+            name="upload",
+            shortcuts=["u", "send"],
+            description="Upload a local sample to the server",
+            usage="upload <sample_name>",
+            func=upload_command,
             cli=cli,
             registry=registry
         )

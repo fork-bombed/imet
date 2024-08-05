@@ -23,6 +23,8 @@ async def process_request(websocket: websockets.WebSocketServerProtocol, data: b
         await handle_samples_list(websocket, cli, request)
     elif action == "emulate":
         await handle_emulate(websocket, cli, request)
+    elif action == "upload":
+        await handle_upload(websocket, cli, request)
 
 
 async def handle_ipython(websocket: websockets.WebSocketServerProtocol, cli: interface.CLI, request: dict, ipython_shell: InteractiveShell):
@@ -186,6 +188,36 @@ async def handle_emulate(websocket: websockets.WebSocketServerProtocol, cli: int
                     "action": "emulate",
                     "error": "Sample name not provided"
                 }
+
+    await websocket.send(msgpack.packb(response))
+
+
+async def handle_upload(websocket: websockets.WebSocketServerProtocol, cli: interface.CLI, request: dict):
+    sample_name = request.get("sample_name")
+    script_content = request.get("script_content")
+
+    if sample_name and script_content:
+        project_root = imet.get_project_root()
+        samples_directory = os.path.join(project_root, "samples")
+        remote_file_path = os.path.join(samples_directory, f"{sample_name}.py")
+
+        try:
+            with open(remote_file_path, "w") as f:
+                f.write(script_content)
+            response = {
+                "action": "upload",
+                "message": f"Sample \"{sample_name}.py\" uploaded successfully"
+            }
+        except Exception as e:
+            response = {
+                "action": "upload",
+                "error": str(e)
+            }
+    else:
+        response = {
+            "action": "upload",
+            "error": "Sample name or script content not provided"
+        }
 
     await websocket.send(msgpack.packb(response))
 
